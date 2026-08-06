@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,30 +26,27 @@ type Payload struct {
 }
 
 func main() {
-	redisAddr := getenv("REDIS_ADDR", "localhost:6379")
-	redisPassword := os.Getenv("REDIS_PASSWORD")
-	redisDB := mustAtoi(getenv("REDIS_DB", "0"))
+	redisOptions, err := redisOptionsFromEnv()
+	if err != nil {
+		log.Fatalf("parse redis options: %v", err)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: redisPassword,
-		DB:       redisDB,
-	})
+	rdb := redis.NewClient(redisOptions)
 	defer rdb.Close()
 
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	if err := rdb.Ping(pingCtx).Err(); err != nil {
 		cancel()
-		log.Fatalf("connect to redis at %s: %v", redisAddr, err)
+		log.Fatalf("connect to redis: %v", err)
 	}
 	cancel()
 
 	c := cron.New(cron.WithSeconds())
 
-	_, err := c.AddFunc("0 0 10 * * *", func() {
+	_, err = c.AddFunc("0 0 10 * * *", func() {
 		if err := publishMessage(ctx, rdb); err != nil {
 			log.Printf("publish %s: %v", redisChannel, err)
 			return
@@ -83,18 +81,26 @@ func publishMessage(ctx context.Context, rdb *redis.Client) error {
 	return rdb.Publish(ctx, redisChannel, payloadJSON).Err()
 }
 
+func redisOptionsFromEnv() (*redis.Options, error) {
+	raw := os.Getenv("REDIS_URL")
+	if raw == "" {
+		raw = getenv("REDIS_ADDR", "redis://localhost:6379/0")
+	}
+
+	if strings.Contains(raw, "://") {
+		opt, err := redis.ParseURL(raw)
+		if err != nil {
+			return nil, fmt.Errorf("parse REDIS_URL: %w", err)
+		}
+		return opt, nil
+	}
+
+	return &redis.Options{Addr: raw}, nil
+}
+
 func getenv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
 	return defaultValue
-}
-
-func mustAtoi(s string) int {
-	var n int
-	_, err := fmt.Sscan(s, &n)
-	if err != nil {
-		log.Fatalf("invalid integer %q: %v", s, err)
-	}
-	return n
 }

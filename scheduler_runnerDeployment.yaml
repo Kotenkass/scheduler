@@ -1,0 +1,25 @@
+apiVersion: actions.summerwind.dev/v1alpha1
+kind: RunnerDeployment
+metadata:
+  name: kotenkass-scheduler-api-runner
+spec:
+  replicas: 1
+  template:
+    spec:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containerMode: kubernetes
+      workVolumeClaimTemplate:
+        storageClassName: csi-cinder-classic
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+      serviceAccountName: github-runner-sa
+      repository: Kotenkass/scheduler
+      labels:
+        - linux
+        - scheduler

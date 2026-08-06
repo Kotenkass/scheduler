@@ -1,7 +1,7 @@
 apiVersion: actions.summerwind.dev/v1alpha1
 kind: RunnerDeployment
 metadata:
-  name: kotenkass-telegram-api-runner
+  name: kotenkass-scheduler-runner
 spec:
   replicas: 1
   template:

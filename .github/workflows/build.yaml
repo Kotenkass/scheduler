@@ -10,12 +10,6 @@ jobs:
       - k8s
       - scheduler
 
-    container:
-      image: docker:27-cli
-      options: --user root
-      volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

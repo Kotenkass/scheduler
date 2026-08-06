@@ -22,6 +22,8 @@ spec:
       env:
         - name: KUBECONFIG
           value: /var/run/secrets/kubernetes.io/serviceaccount/kubeconfig
+        - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+          value: "false"
       volumeMounts:
         - name: runner-kubeconfig
           mountPath: /var/run/secrets/kubernetes.io/serviceaccount
@@ -51,7 +53,7 @@ spec:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 1Gi
+            storage: 2Gi
       serviceAccountName: github-runner-sa
       repository: Kotenkass/scheduler
       labels:

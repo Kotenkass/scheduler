@@ -4,11 +4,7 @@ on: [push]
 
 jobs:
   build:
-    runs-on:
-      - self-hosted
-      - linux
-      - k8s
-      - scheduler
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code

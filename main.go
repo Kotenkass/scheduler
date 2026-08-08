@@ -30,6 +30,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("parse redis options: %v", err)
 	}
+	if debugEnabled() {
+		log.Printf("scheduler started with debug logging enabled; redis addr=%q db=%d", redisOptions.Addr, redisOptions.DB)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -48,6 +51,7 @@ func main() {
 
 	_, err = c.AddFunc("0 0 10 * * *", func() {
 		if err := publishMessage(ctx, rdb); err != nil {
+			logDebug("publish %s failed: %v", redisChannel, err)
 			log.Printf("publish %s: %v", redisChannel, err)
 			return
 		}
@@ -65,6 +69,16 @@ func main() {
 	_ = c.Stop()
 	_ = rdb.Close()
 	log.Printf("scheduler stopped: %v", ctx.Err())
+}
+
+func debugEnabled() bool {
+	return strings.EqualFold(os.Getenv("LOG_LEVEL"), "debug")
+}
+
+func logDebug(format string, args ...any) {
+	if debugEnabled() {
+		log.Printf(format, args...)
+	}
 }
 
 func publishMessage(ctx context.Context, rdb *redis.Client) error {

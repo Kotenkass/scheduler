@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler-deployment
+  namespace: dev
+  labels:
+    app: scheduler
+    environment: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scheduler
+      environment: dev
+  template:
+    metadata:
+      labels:
+        app: scheduler
+        environment: dev
+    spec:
+      containers:
+        - name: scheduler
+          image: docker.io/Kotenkass/scheduler:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TELEGRAM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: scheduler-dev-env
+                  key: TELEGRAM_TOKEN
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scheduler-dev-env
+                  key: REDIS_URL
+            - name: USER_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scheduler-dev-env
+                  key: USER_SERVICE_URL
+            - name: LOG_LEVEL
+              value: debug
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test -n "$REDIS_URL"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test -n "$REDIS_URL"
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

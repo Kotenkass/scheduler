@@ -101,7 +101,7 @@ spec:
     spec:
       containers:
         - name: scheduler
-          image: docker.io/Kotenkass/schedule
+          image: docker.io/kotenkass/schedule
           imagePullPolicy: IfNotPresent
           env:
             - name: TELEGRAM_TOKEN

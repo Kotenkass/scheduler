@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: scheduler-deployment
+  name: scheduler
   labels:
     app: scheduler
 spec:
@@ -19,11 +19,6 @@ spec:
           image: docker.io/Kotenkass/scheduler:latest
           imagePullPolicy: IfNotPresent
           env:
-            - name: TELEGRAM_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: scheduler-env
-                  key: TELEGRAM_TOKEN
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:

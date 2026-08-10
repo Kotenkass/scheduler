@@ -8,7 +8,7 @@ metadata:
 apiVersion: v1
 kind: Service
 metadata:
-  name: redis-dev
+  name: redis-master
   namespace: dev
   labels:
     app: redis
@@ -25,14 +25,15 @@ spec:
       protocol: TCP
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: redis-dev
+  name: redis-master
   namespace: dev
   labels:
     app: redis
     environment: dev
 spec:
+  serviceName: redis-master
   replicas: 1
   selector:
     matchLabels:
@@ -82,7 +83,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: scheduler-deployment
+  name: scheduler
   namespace: dev
   labels:
     app: scheduler
@@ -101,7 +102,7 @@ spec:
     spec:
       containers:
         - name: scheduler
-          image: docker.io/kotenkass/schedule
+          image: anikolaevdo/scheduler:dev
           imagePullPolicy: IfNotPresent
           env:
             - name: TELEGRAM_TOKEN

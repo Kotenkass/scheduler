@@ -4,15 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/Kotenkass/scheduler/internal/logger"
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -26,13 +27,16 @@ type Payload struct {
 }
 
 func main() {
+	log := logger.NewLogger()
+
 	redisOptions, err := redisOptionsFromEnv()
 	if err != nil {
-		log.Fatalf("parse redis options: %v", err)
+		log.WithError(err).Fatal("parse redis options")
 	}
-	if debugEnabled() {
-		log.Printf("scheduler started with debug logging enabled; redis addr=%q db=%d", redisOptions.Addr, redisOptions.DB)
-	}
+	log.WithFields(logrus.Fields{
+		"redis_addr": redisOptions.Addr,
+		"redis_db":   redisOptions.DB,
+	}).Info("redis options loaded")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -43,7 +47,7 @@ func main() {
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	if err := rdb.Ping(pingCtx).Err(); err != nil {
 		cancel()
-		log.Fatalf("connect to redis: %v", err)
+		log.WithError(err).Fatal("connect to redis")
 	}
 	cancel()
 
@@ -51,34 +55,29 @@ func main() {
 
 	_, err = c.AddFunc("0 0 10 * * *", func() {
 		if err := publishMessage(ctx, rdb); err != nil {
-			logDebug("publish %s failed: %v", redisChannel, err)
-			log.Printf("publish %s: %v", redisChannel, err)
+			log.WithError(err).WithField("redis_channel", redisChannel).Error("publish failed")
 			return
 		}
-		log.Printf("published %s at %s", redisChannel, time.Now().Format(time.RFC3339))
+		log.WithFields(logrus.Fields{
+			"event":         "message_published",
+			"redis_channel": redisChannel,
+			"sent_at":       time.Now().UTC().Format(time.RFC3339Nano),
+		}).Info("message published")
 	})
 	if err != nil {
-		log.Fatalf("schedule cron job: %v", err)
+		log.WithError(err).Fatal("schedule cron job")
 	}
 
 	c.Start()
-	log.Printf("scheduler started; publishing to redis channel %q every day at 10:00:00", redisChannel)
+	log.WithField("redis_channel", redisChannel).Info("scheduler started")
 
 	<-ctx.Done()
 
-	_ = c.Stop()
-	_ = rdb.Close()
-	log.Printf("scheduler stopped: %v", ctx.Err())
-}
-
-func debugEnabled() bool {
-	return strings.EqualFold(os.Getenv("LOG_LEVEL"), "debug")
-}
-
-func logDebug(format string, args ...any) {
-	if debugEnabled() {
-		log.Printf(format, args...)
+	c.Stop()
+	if err := rdb.Close(); err != nil {
+		log.WithError(err).Warn("close redis")
 	}
+	log.WithField("signal", ctx.Err()).Info("scheduler stopped")
 }
 
 func publishMessage(ctx context.Context, rdb *redis.Client) error {
@@ -117,4 +116,27 @@ func getenv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func loggingExamples(log *logrus.Logger) {
+	err := fmt.Errorf("redis connection refused")
+
+	log.WithError(err).WithField("redis_addr", "redis://localhost:6379/0").Error("failed to connect to redis")
+
+	log.WithFields(logrus.Fields{
+		"event":         "job_scheduled",
+		"job_id":        "daily-message",
+		"schedule":      "0 0 10 * * *",
+		"redis_channel": redisChannel,
+	}).Info("business event logged")
+
+	log.WithFields(logrus.Fields{
+		"recipient": "user@example.com",
+		"attempt":   1,
+		"success":   true,
+	}).Debug("additional fields on a log entry")
+
+	logger.LogWithLevel(log, logrus.DebugLevel, "explicit per-entry log level", logrus.Fields{
+		"event": "example",
+	})
 }

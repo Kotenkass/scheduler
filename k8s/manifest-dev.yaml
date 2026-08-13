@@ -102,7 +102,7 @@ spec:
     spec:
       containers:
         - name: scheduler
-          image: anikolaevdo/scheduler:dev
+          image: docker.io/anikolaevdo/scheduler:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: TELEGRAM_TOKEN

@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: scheduler
-          image: docker.io/Kotenkass/scheduler:latest
+          image: docker.io/anikolaevdo/scheduler:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: TELEGRAM_TOKEN

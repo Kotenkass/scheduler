@@ -1,6 +1,9 @@
 name: Build, Push, and Deploy Docker Image
 
-on: [push]
+on:
+      push:
+        branches:
+          - master
 
 jobs:
   build:
@@ -33,7 +36,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile
+          file: docker/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -43,7 +46,6 @@ jobs:
     needs: build
 
     env:
-      MANIFEST_PATH: manifest.yaml
       KUBECONFIG: /tmp/kubeconfig
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       REDIS_URL: ${{ secrets.REDIS_URL }}
@@ -72,7 +74,7 @@ jobs:
             --dry-run=client -o yaml | kubectl --kubeconfig "$KUBECONFIG" apply -f -
 
       - name: Apply Manifest
-        run: kubectl --kubeconfig "$KUBECONFIG" apply -f "$MANIFEST_PATH"
+        run: kubectl --kubeconfig "$KUBECONFIG" apply -f k8s/manifest.yaml
 
       - name: Set Docker image
         run: kubectl --kubeconfig "$KUBECONFIG" set image deployment/scheduler-deployment scheduler="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/scheduler:latest"

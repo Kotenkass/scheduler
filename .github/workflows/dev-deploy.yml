@@ -18,7 +18,7 @@ jobs:
       IMAGE_TAG: dev
       NAMESPACE: dev
       KUBECONFIG: /tmp/kubeconfig
-      MANIFEST_PATH: manifest-dev.yaml
+      MANIFEST_PATH: k8s/manifest-dev.yaml
 
     steps:
       - name: Checkout
@@ -37,7 +37,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile
+          file: docker/Dockerfile
           push: true
           tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
 

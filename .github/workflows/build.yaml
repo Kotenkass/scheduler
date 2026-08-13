@@ -33,7 +33,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile
+          file: docker/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -43,7 +43,7 @@ jobs:
     needs: build
 
     env:
-      MANIFEST_PATH: manifest.yaml
+      MANIFEST_PATH: k8s/manifest.yaml
       KUBECONFIG: /tmp/kubeconfig
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       REDIS_URL: ${{ secrets.REDIS_URL }}

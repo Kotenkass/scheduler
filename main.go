@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -11,6 +13,8 @@ import (
 	"time"
 
 	"github.com/Kotenkass/scheduler/internal/logger"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
@@ -18,7 +22,53 @@ import (
 
 const (
 	redisChannel = "send_message"
+	httpAddr     = ":8080"
 )
+
+var (
+	cronJobRunsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "scheduler",
+			Name:      "cron_job_runs_total",
+			Help:      "Total number of scheduler cron job executions.",
+		},
+		[]string{"job"},
+	)
+	cronJobErrorsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "scheduler",
+			Name:      "cron_job_errors_total",
+			Help:      "Total number of failed scheduler cron job executions.",
+		},
+		[]string{"job"},
+	)
+	cronJobDurationSeconds = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "scheduler",
+			Name:      "cron_job_duration_seconds",
+			Help:      "Scheduler cron job execution duration in seconds.",
+			Buckets:   prometheus.DefBuckets,
+		},
+		[]string{"job"},
+	)
+	cronJobLastSuccessTimestampSeconds = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "scheduler",
+			Name:      "cron_job_last_success_timestamp_seconds",
+			Help:      "Unix timestamp of the last successful scheduler cron job execution.",
+		},
+		[]string{"job"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(
+		cronJobRunsTotal,
+		cronJobErrorsTotal,
+		cronJobDurationSeconds,
+		cronJobLastSuccessTimestampSeconds,
+	)
+}
 
 type Payload struct {
 	Message   string    `json:"message"`
@@ -54,10 +104,17 @@ func main() {
 	c := cron.New(cron.WithSeconds())
 
 	_, err = c.AddFunc("0 0 10 * * *", func() {
+		start := time.Now()
+		cronJobRunsTotal.WithLabelValues("daily-message").Inc()
+
 		if err := publishMessage(ctx, rdb); err != nil {
+			cronJobErrorsTotal.WithLabelValues("daily-message").Inc()
 			log.WithError(err).WithField("redis_channel", redisChannel).Error("publish failed")
 			return
 		}
+
+		cronJobDurationSeconds.WithLabelValues("daily-message").Observe(time.Since(start).Seconds())
+		cronJobLastSuccessTimestampSeconds.WithLabelValues("daily-message").Set(float64(time.Now().Unix()))
 		log.WithFields(logrus.Fields{
 			"event":         "message_published",
 			"redis_channel": redisChannel,
@@ -69,6 +126,7 @@ func main() {
 	}
 
 	c.Start()
+	startHTTPServer(log)
 	log.WithField("redis_channel", redisChannel).Info("scheduler started")
 
 	<-ctx.Done()
@@ -92,6 +150,28 @@ func publishMessage(ctx context.Context, rdb *redis.Client) error {
 	}
 
 	return rdb.Publish(ctx, redisChannel, payloadJSON).Err()
+}
+
+func startHTTPServer(log *logrus.Logger) {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok\n"))
+	})
+
+	server := &http.Server{
+		Addr:              httpAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	go func() {
+		log.WithField("addr", httpAddr).Info("metrics server starting")
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.WithError(err).Error("metrics server failed")
+		}
+	}()
 }
 
 func redisOptionsFromEnv() (*redis.Options, error) {

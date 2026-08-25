@@ -21,8 +21,9 @@ import (
 )
 
 const (
-	redisChannel = "send_message"
-	httpAddr     = ":8080"
+	redisChannel       = "send_message"
+	weeklyRedisChannel = "weekly_reco"
+	httpAddr           = ":8080"
 )
 
 var (
@@ -125,6 +126,28 @@ func main() {
 		log.WithError(err).Fatal("schedule cron job")
 	}
 
+	_, err = c.AddFunc("0 0 9 * * MON", func() {
+		start := time.Now()
+		cronJobRunsTotal.WithLabelValues("weekly-reco").Inc()
+
+		if err := publishWeeklyRecommendation(ctx, rdb); err != nil {
+			cronJobErrorsTotal.WithLabelValues("weekly-reco").Inc()
+			log.WithError(err).WithField("redis_channel", weeklyRedisChannel).Error("publish failed")
+			return
+		}
+
+		cronJobDurationSeconds.WithLabelValues("weekly-reco").Observe(time.Since(start).Seconds())
+		cronJobLastSuccessTimestampSeconds.WithLabelValues("weekly-reco").Set(float64(time.Now().Unix()))
+		log.WithFields(logrus.Fields{
+			"event":         "weekly_recommendation_published",
+			"redis_channel": weeklyRedisChannel,
+			"sent_at":       time.Now().UTC().Format(time.RFC3339Nano),
+		}).Info("weekly recommendation published")
+	})
+	if err != nil {
+		log.WithError(err).Fatal("schedule cron job")
+	}
+
 	c.Start()
 	startHTTPServer(log)
 	log.WithField("redis_channel", redisChannel).Info("scheduler started")
@@ -150,6 +173,19 @@ func publishMessage(ctx context.Context, rdb *redis.Client) error {
 	}
 
 	return rdb.Publish(ctx, redisChannel, payloadJSON).Err()
+}
+
+func publishWeeklyRecommendation(ctx context.Context, rdb *redis.Client) error {
+	payload := map[string]string{
+		"fire_at": time.Now().UTC().Format(time.RFC3339),
+	}
+
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal payload: %w", err)
+	}
+
+	return rdb.Publish(ctx, weeklyRedisChannel, payloadJSON).Err()
 }
 
 func startHTTPServer(log *logrus.Logger) {

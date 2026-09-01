@@ -79,7 +79,7 @@ jobs:
             --dry-run=client -o yaml | kubectl --kubeconfig "$KUBECONFIG" apply -f -
 
       - name: Apply Manifest
-        run: kubectl --kubeconfig "$KUBECONFIG" apply -f "$MANIFEST_PATH"
+        run: kubectl --kubeconfig "$KUBECONFIG" apply -f k8s/manifest.yaml
 
       - name: Set Docker image
         run: kubectl --kubeconfig "$KUBECONFIG" set image deployment/scheduler-deployment scheduler="$IMAGE_NAME"

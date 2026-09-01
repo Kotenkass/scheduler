@@ -1,0 +1,156 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    environment: dev
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-master
+  namespace: dev
+  labels:
+    app: redis
+    environment: dev
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+    environment: dev
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-master
+  namespace: dev
+  labels:
+    app: redis
+    environment: dev
+spec:
+  serviceName: redis-master
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+      environment: dev
+  template:
+    metadata:
+      labels:
+        app: redis
+        environment: dev
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli ping | grep -q PONG
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli ping | grep -q PONG
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+              ephemeral-storage: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler
+  namespace: dev
+  labels:
+    app: scheduler
+    environment: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scheduler
+      environment: dev
+  template:
+    metadata:
+      labels:
+        app: scheduler
+        environment: dev
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: scheduler
+          image: docker.io/anikolaevdo/scheduler:dev
+        
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TELEGRAM_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: scheduler-dev-env
+                  key: TELEGRAM_TOKEN
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scheduler-dev-env
+                  key: REDIS_URL
+            - name: USER_SERVICE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: scheduler-dev-env
+                  key: USER_SERVICE_URL
+            - name: LOG_LEVEL
+              value: debug
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test -n "$REDIS_URL"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 12
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test -n "$REDIS_URL"
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+              ephemeral-storage: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

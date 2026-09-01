@@ -14,16 +14,12 @@ spec:
       labels:
         app: scheduler
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: scheduler
           image: docker.io/anikolaevdo/scheduler:latest
           imagePullPolicy: IfNotPresent
           env:
-            - name: TELEGRAM_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: scheduler-env
-                  key: TELEGRAM_TOKEN
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:
@@ -34,3 +30,11 @@ spec:
                 secretKeyRef:
                   name: scheduler-env
                   key: USER_SERVICE_URL
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+              ephemeral-storage: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

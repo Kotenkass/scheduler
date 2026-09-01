@@ -20,7 +20,7 @@ func TestRequestLoggerAddsRequestIDContextAndHeader(t *testing.T) {
 	e := echo.New()
 	e.Use(RequestLogger(Config{Logger: log}))
 	e.GET("/jobs", func(c echo.Context) error {
-		if got := RequestID(c); got == "" {
+		if RequestID(c) == "" {
 			t.Fatal("request ID missing from context")
 		}
 		return c.String(http.StatusOK, "ok")
@@ -33,7 +33,7 @@ func TestRequestLoggerAddsRequestIDContextAndHeader(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
-	if requestID := rec.Header().Get(RequestIDHeader); requestID == "" {
+	if rec.Header().Get(RequestIDHeader) == "" {
 		t.Fatalf("%s header missing", RequestIDHeader)
 	}
 	if requestID := req.Header.Get(RequestIDHeader); requestID != "" {

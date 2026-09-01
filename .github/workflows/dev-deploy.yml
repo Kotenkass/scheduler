@@ -45,9 +45,11 @@ jobs:
         uses: azure/setup-kubectl@901a10e89ea615cf61f57ac05cecdf23e7de06d8
 
       - name: Prepare kubeconfig
+        env:
+          KUBECONFIG_BASE64: ${{ secrets.KUBECONFIG_BASE64 }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 --decode > "$KUBECONFIG"
+          printf '%s' "$KUBECONFIG_BASE64" | base64 --decode > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
           kubectl --kubeconfig "$KUBECONFIG" auth can-i get pods --all-namespaces
 

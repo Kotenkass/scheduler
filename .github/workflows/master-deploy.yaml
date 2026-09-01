@@ -48,9 +48,7 @@ jobs:
     env:
       MANIFEST_PATH: k8s/manifest.yaml
       KUBECONFIG: /tmp/kubeconfig
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      REDIS_URL: ${{ secrets.REDIS_URL }}
-      USER_SERVICE_URL: ${{ secrets.USER_SERVICE_URL }}
+      IMAGE_NAME: docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/scheduler
 
     steps:
       - name: Checkout code
@@ -60,13 +58,19 @@ jobs:
         uses: azure/setup-kubectl@901a10e89ea615cf61f57ac05cecdf23e7de06d8
 
       - name: Prepare kubeconfig
+        env:
+          KUBECONFIG_BASE64: ${{ secrets.KUBECONFIG_BASE64 }}
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
-          echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 --decode > "$KUBECONFIG"
+          printf '%s' "$KUBECONFIG_BASE64" | base64 --decode > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
           kubectl --kubeconfig "$KUBECONFIG" auth can-i get pods --all-namespaces
 
       - name: Create or update scheduler environment Secret
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          USER_SERVICE_URL: ${{ secrets.USER_SERVICE_URL }}
         run: |
           kubectl --kubeconfig "$KUBECONFIG" create secret generic scheduler-env \
             --from-literal=TELEGRAM_TOKEN \
@@ -78,7 +82,7 @@ jobs:
         run: kubectl --kubeconfig "$KUBECONFIG" apply -f "$MANIFEST_PATH"
 
       - name: Set Docker image
-        run: kubectl --kubeconfig "$KUBECONFIG" set image deployment/scheduler-deployment scheduler="docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/scheduler:latest"
+        run: kubectl --kubeconfig "$KUBECONFIG" set image deployment/scheduler-deployment scheduler="$IMAGE_NAME"
 
       - name: Restart Deployment
         run: kubectl --kubeconfig "$KUBECONFIG" rollout restart deployment scheduler-deployment

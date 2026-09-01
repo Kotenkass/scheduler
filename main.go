@@ -21,6 +21,8 @@ import (
 )
 
 const (
+	dailyCronJobName   = "daily-message"
+	weeklyCronJobName  = "weekly-reco"
 	redisChannel       = "send_message"
 	weeklyRedisChannel = "weekly_reco"
 	httpAddr           = ":8080"
@@ -106,16 +108,16 @@ func main() {
 
 	_, err = c.AddFunc("0 0 10 * * *", func() {
 		start := time.Now()
-		cronJobRunsTotal.WithLabelValues("daily-message").Inc()
+		cronJobRunsTotal.WithLabelValues(dailyCronJobName).Inc()
 
 		if err := publishMessage(ctx, rdb); err != nil {
-			cronJobErrorsTotal.WithLabelValues("daily-message").Inc()
+			cronJobErrorsTotal.WithLabelValues(dailyCronJobName).Inc()
 			log.WithError(err).WithField("redis_channel", redisChannel).Error("publish failed")
 			return
 		}
 
-		cronJobDurationSeconds.WithLabelValues("daily-message").Observe(time.Since(start).Seconds())
-		cronJobLastSuccessTimestampSeconds.WithLabelValues("daily-message").Set(float64(time.Now().Unix()))
+		cronJobDurationSeconds.WithLabelValues(dailyCronJobName).Observe(time.Since(start).Seconds())
+		cronJobLastSuccessTimestampSeconds.WithLabelValues(dailyCronJobName).Set(float64(time.Now().Unix()))
 		log.WithFields(logrus.Fields{
 			"event":         "message_published",
 			"redis_channel": redisChannel,
@@ -128,16 +130,16 @@ func main() {
 
 	_, err = c.AddFunc("0 0 9 * * MON", func() {
 		start := time.Now()
-		cronJobRunsTotal.WithLabelValues("weekly-reco").Inc()
+		cronJobRunsTotal.WithLabelValues(weeklyCronJobName).Inc()
 
 		if err := publishWeeklyRecommendation(ctx, rdb); err != nil {
-			cronJobErrorsTotal.WithLabelValues("weekly-reco").Inc()
+			cronJobErrorsTotal.WithLabelValues(weeklyCronJobName).Inc()
 			log.WithError(err).WithField("redis_channel", weeklyRedisChannel).Error("publish failed")
 			return
 		}
 
-		cronJobDurationSeconds.WithLabelValues("weekly-reco").Observe(time.Since(start).Seconds())
-		cronJobLastSuccessTimestampSeconds.WithLabelValues("weekly-reco").Set(float64(time.Now().Unix()))
+		cronJobDurationSeconds.WithLabelValues(weeklyCronJobName).Observe(time.Since(start).Seconds())
+		cronJobLastSuccessTimestampSeconds.WithLabelValues(weeklyCronJobName).Set(float64(time.Now().Unix()))
 		log.WithFields(logrus.Fields{
 			"event":         "weekly_recommendation_published",
 			"redis_channel": weeklyRedisChannel,
@@ -241,7 +243,7 @@ func loggingExamples(log *logrus.Logger) {
 
 	log.WithFields(logrus.Fields{
 		"event":         "job_scheduled",
-		"job_id":        "daily-message",
+		"job_id":        dailyCronJobName,
 		"schedule":      "0 0 10 * * *",
 		"redis_channel": redisChannel,
 	}).Info("business event logged")

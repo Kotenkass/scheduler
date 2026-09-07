@@ -17,7 +17,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: scheduler
-          image: docker.io/anikolaevdo/scheduler:latest
+          image: docker.io/anikolaevdo/scheduler:release
           imagePullPolicy: IfNotPresent
           env:
             - name: REDIS_URL

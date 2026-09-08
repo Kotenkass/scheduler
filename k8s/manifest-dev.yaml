@@ -103,10 +103,14 @@ spec:
         environment: dev
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
       containers:
         - name: scheduler
           image: docker.io/anikolaevdo/scheduler:dev
-        
           imagePullPolicy: IfNotPresent
           env:
             - name: TELEGRAM_TOKEN
@@ -124,8 +128,13 @@ spec:
                 secretKeyRef:
                   name: scheduler-dev-env
                   key: USER_SERVICE_URL
+            - name: IMAGE_TAG
+              value: dev
             - name: LOG_LEVEL
               value: debug
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
           readinessProbe:
             exec:
               command:
